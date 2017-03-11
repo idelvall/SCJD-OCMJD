@@ -1,0 +1,510 @@
+# Overview:
+-----------
+    This file describes the significant design choices I made, details the problems and uncertainties I perceived, the 
+    issues surrounding them, and the decisions I made when resolving them.
+   
+    
+# General Considerations:
+-------------------------
+    The following principles have been applied whenever was possible overall the project:
+
+        - SoC (Separation of Concerns) Principle:
+            Identify independent functionality and model it as independent abstractions, maximizing components cohesion. 
+            Each type has a specific and predefined purpose and responsibility.
+            Example: 
+                Data functionality is split into three independent concerns: 
+                data access functionality, locking, search algorithms. 
+
+    	- Dependency inversion principle (DIP) Depend upon interfaces, in order to make the components the most reusable
+    	   generic, and pluggable as possible. All main components in the application are designed implementing the most 
+    	   generic interface that defines its main purpose. All required functionality is declared by references to 
+    	   those interfaces.
+    	        
+    	- Usage of standard design patterns.
+    	
+    	- Enforce encapsulation:
+        	- Reduce member visibility whenever is possible.
+        	- Classes not designed to be extended are declared final.
+        	- Attributes not designed to change are declared final.
+        	
+        - Abstraction Principle: Do not repeat code. Extract common functionality to superclasses or helper classes.
+	
+	
+# Architecture description:
+---------------------------    
+    Chosen architecture is a 2 tier solution, that is, a client-server architecture with server exposing data access 
+    services. In the "Uncertainties found" section is explained why.  
+    
+    Data Access Layer: 
+    ------------------
+        1) Purpose: implement DBAccess services.
+        2) Base package: suncertify.db
+        3) Depends on packages: 
+        4) Main resources:
+            - Outer interface: DBAccess (implemented by Data class)
+            - Data class uses
+                DataAccessObject (implemented by URLyBirdFile_1_2_1) CRUD data operations to the data file.
+                LockManager (implemented by DefaultLockManagerImpl) Logical locking.
+                FinderObject (implemented by DefaultFinderImp) FindByCriteria algorithms.
+        
+    RMI server: 
+    -----------
+        1) Purpose: Make DAL accessible remotely.
+        2) Base package: suncertify.server
+        3) Depends on packages: suncertify.db
+        4) Main resources:
+            - Server class: start/stop operations.
+                Start: Creates a RemoteDBAccessFactory instance and publishes it to the RMI registry;
+                Stop: Performs a clean shutdown: unbinds the factory from the registry, makes it to reject incoming 
+                calls, waits a short period before interrupt pending threads.
+            - Published Remote interface RemoteDBAccessFactory (implemented by RemoteDBAccessFactoryImpl): Single 
+                instance bounded to the RMI registry.
+            - RemoteDBAccess (implemented by RemoteData), created and RMI exported by the factory, one for each client. 
+                All of them share the same DBAccess instance.
+	
+	RMI Client: 
+	-----------
+        1) Purpose: Providing a DBAccess proxy, isolating the client from underlying server implementation.
+        2) Base package: suncertify.client
+        3) Depends on packages: suncertify.server, suncertify.db
+        4) Main resources:
+            - Client class: Provides an static factory method to create DBAccess instances: connect(String host, int 
+                port). Gets the RMI registry from the specified parameters, gets the factory bound by the server, 
+                creates new RemoteDBAccess with the factory and adapts it to the DBAccess interface with the next class:  
+            - RemoteDataAdapter class: DBAccess implementation returned by previous method call. This class implements 
+                DBAccess wrapping a RemoteDBAccess. Delegates to the wrapped instance all method calls and transforms 
+                the RMI checked exceptions in unchecked.
+	
+	Business Logic Layer:
+	---------------------
+        1) Purpose: Isolating the client from the data layer functionality and offer a higher level of abstraction 
+            closer to the real life modeled business.
+        2) Base package: suncertify.bs
+        3) Depends on packages: suncertify.db
+        4) Main resources:
+            HotelRoom class: Business object.
+            suncertify.bs.commands package: Several business commands.
+            
+	Presentation Layer:
+	-------------------
+        1) Purpose: Letting the users interact with the applications.
+        2) Base package: suncertify.gui
+        3) Server PL depends on packages: suncertify.server, suncertify.db
+           Client PL depends on packages: suncertify.client, suncertify.bs, suncertify.db
+        4) Main resources:
+            Server:
+                - ServerGUI class: Lets the server administrator manage a Server class instance.
+            Client:
+                - ClientGUI class: Lets the CSR's connect to a local database or remote server and executes business 
+                    commands
+                - suncertify.gui.client package: command invocation and notification framework. 
+
+
+# Data implementation:
+----------------------
+    Data functionality is split in three independent concerns: Locking, CRUD operations and findByCriteria algorithm. 
+    Each one is represented by one interface: LockManager, DataAccessObject and FinderObject respectively.
+    Data instance wraps a delegate for each one of the previous interfaces. 
+    Locking will be explained in a dedicated paragraph. 
+    
+    DataAccessObject: 
+    -----------------
+        Provides a unified interface to a persistent mechanism, isolating the client from the storage nature.
+        Makes easier a possible migration to a relational database solution.
+       
+        Implementation: URLyBirdFile_1_2_1 class.
+           This class provides CRUD services to a 1.2.1 compatible data file. It is based on a RandomAccessFile, using 
+           the record number as record identifier. All public methods of this class are synchronized as RandomAccessFile
+           is not thread-safe (file pointer is an instance state).
+      
+        Improvements: Create a new DataAccessObject implementation for cache the database in memory reducing file 
+            access. It would act as a proxy of another wrapped DataAccessObject, delegating and synchronizing its state 
+            when necessary. Given the URLyBird background (a temporary solution), an static cache of all database 
+            records should be acceptable.
+            
+    FinderObject:
+    -------------
+        Based on requirement ".. data access system that provides ... flexible search mechanism", searching 
+        functionality is represented by its own abstraction. "Flexible" here has been interpreted as "able to change".
+        
+        Implementation: DefaultFinderImp class (uses a DataAccessObject instance). Its performance could be highly 
+        improved using a DataAccessObject cache as stated in the previous paragraph. 
+     
+    SecurityException:
+    ------------------         
+        A custom SecurityException has been created since java.lang.SecurityException documentation says:
+        "Thrown by the security manager to indicate a security violation." and security exceptions in our application
+        are not thrown by the security manager.
+         
+# Server:
+---------
+    Choose RMI over sockets:
+    ------------------------
+        RMI benefits:
+            1) RMI solution is faster and easier to implement, once some basic understanding of the technology is 
+                achieved. 
+            2) RMI offers a mature standard solution. A socket based solution would have to implement from scratch 
+                many functionality that is already provided by the RMI runtime. So RMI election is less prone to errors.
+            3) RMI solution is more maintainable (since it is a standard technology). 
+            4) RMI solution is more extensible (provides lots of characteristics ready to use: SSL, dynamic code 
+                download, support non java clients (IIOP protocol) and facilitate its proxy creation via IDL, without 
+                needing to know a custom protocol).
+            5) RMI solution is more manageable since can be parametrized externally via VM arguments.
+            6) RMI provides network transparency (remote objects behave like local ones) and compile-time type safety, 
+                so code is more robust.
+            7) Future migration to an enterprise solution (based in EJBs) is much simpler.  
+            
+        Socket benefits:
+            1) Socket solution can outperform RMI solution, since we have total control of the messages being sent. 
+            2) Socket solution is easier to understand for a junior programmer since socket API is much simpler than the
+                hole RMI runtime. 
+           
+        Decision: 
+            I chose RMI because performance is not a design consideration for the assignment. 
+            Despite of being harder to understand, it is preferred because of code simplicity, prone to errors lower
+            level, and being a standard technology. 
+    
+    Server having a GUI:
+    --------------------
+        Based on the requirement: "Your programs MUST not require use of command line property specifications, All 
+        configuration MUST be done via a GUI"
+        Improvements: 
+            - Don't be GUI based, support headless systems:
+                Create a main class to start the server with the parameters specified via command line, and create 
+                another main class to stop the server. This way, the server can be started and stopped by executing a 
+                script. Communication between both processes can be done via sockets or temporary files. 
+            
+    Server architecture:
+    --------------------
+        Based on a RMI factory for two reasons:
+            - Being able to detect client disconnections
+            - Improve extension capabilities since client identification is possible.
+            
+        A RemoteDBAccessFactory implementation is bound to the registry.
+        Clients use the factory to create instances of RemoteDBAcess (implementing Unreferenced interface), also a 
+        remote object. This instances are only remotely referenced by this client.
+        Factory maintains an inner collection of created instances, to manage their life cycle, but this references are 
+        local and do not affect the unreferenced notification of the instances. Created active instances are referred
+        as "managed instances" in the API.
+        
+        RemoteDBAccessFactory implementation: RemoteDBAccessFactoryImpl: 
+        ----------------------------------------------------------------
+            Messages factory -> managed instance:
+                - export to JRMP (in creation) to make them remotely callable.
+                - remoteData.setRejectCalls(true). When rejectIncomingCalls() is called in the factory, the message is 
+                    passed to all managed instances. This method is called in server shutdown. After that, all calls to 
+                    any remote method throw an IllegalStateException.
+                - remoteData.getPendingThreads(). In factory.interruptPendingThreads() all managed instances pending 
+                    threads are interrupted. Called in server shutdown.
+                
+            Messages managed instance -> factory: (via listener decoupling)
+                - listener.notifyUnreference(this). Used to remove the instance from the managed instances list.
+                    
+              - Server class: start/stop operations.
+                    Start: Creates a RemoteDBAccessFactory instance and publishes it to the RMI registry;
+                    Stop: Performs a clean shutdown: unbinds the factory from the registry, makes it to reject incoming 
+                        calls, waits a short period before interrupt pending threads.
+                - Published Remote interface RemoteDBAccessFactory (implemented by RemoteDBAccessFactoryImpl): Single 
+                    instance bounded to the RMI registry
+                - RemoteDBAccess (implemented by RemoteData), created and RMI exported by the factory, one for each 
+                    client. All of them share the same DBAccess instance.
+    
+        RemoteDBAcess implementation: RemoteData:
+        -----------------------------------------
+            - One instance for each client. ("Client" means remote reference, since a "physical" client can call create 
+                several remote instances using the factory. Client proxy could be designed as singleton, but there is no
+                need to limit the number of remote objects referenced by a client, since in server side, all of them are
+                seen as different clients).
+            - Implements Unreferenced: unreferenced() callback method to be notified of client disconnection (called by
+                the RMI runtime).
+                Mainly used for unlocking records locked by this user. Orphan lock avoiding.
+            - All the instances use the same local DBAccess instance, that is thread safe. And delegate the calls to it. 
+            
+        Server shutdown:
+        ----------------
+            On server shutdown the following occurs:
+                - The remote factory is unbound from the RMI registry.
+                - Remote factory is requested to reject incoming calls (forwarding to its managed instances as seen 
+                    before). At this point, no more remote calls can be made to the factory or managed instances.
+                - A thread sleeps for a short interval of time (Server.GRACE_SHUTDOWN_PERIOD) to give a chance to the
+                    current executing threads to end by themselves.
+                - Remote factory is requested to interrupt all managed instances executing threads. 
+                
+        Client disconnection detection:
+        -------------------------------
+             - When a client disconnects, it looses its remote reference to one of the managed instances. 
+             - RMI runtime calls the instance unreferenced() method after an expiration period (defined by the system 
+                property java.rmi.dgc.leaseValue, in ms)
+             - The managed instance then performs some resource cleaning (for example releasing the locks held by its 
+                client)
+             - The managed instance then notifies its state to its listeners.
+             - The factory, as a listener, then removes the instance from its managed instance list and requests the GC 
+                to work. 
+       
+        Ports allocated:
+        ----------------
+            - Server is designed to allocate only one port in the host machine, since the registry, the factory, and the
+                managed instances are exported to the same port. This makes infrastructure administration much easier 
+                (firewalls, routers, etc...)    
+
+# Locking system:
+-----------------
+    Locking architecture:
+    ---------------------
+        Locking functionality has been modeled as an independent concern (see LockManager API).
+        
+        LockManagers manage a keyed collection (Map) of locking entities, so their modeling can be isolated 
+        from any database resource.
+        
+        BaseLockManagerImpl is the base class for concrete implementations. Uses the standard java.util.concurrent.locks
+        package in order to have lock fairness and a more object-oriented code style. (see BaseLockManagerImpl source
+        for more details)            
+
+    Orphan locks:
+    -------------
+        Orphan locks can happen in my application if a client crashes holding a room lock.
+        Server orphan locks liberation is based on the RMI runtime unreferenced notification, used to identify client
+        crashes.        
+        Discarded alternatives:
+            - Locking timeouts. Discarded because maybe is not the expected behaviour to other applications using our 
+                data server.
+    
+    Deadlock prevention:
+    --------------------
+        Deadlock is the situation that would occur by having two threads waiting on lock conditions, each of them
+        being the holder of the lock that serves to notify the other. In this circumstance both remain waiting 
+        indefinitely.
+        
+        Scenarios:
+            1) If an external application uses our Server to access the database, deadlock situations may occur in case 
+               of trying to acquire several locks in the same client thread.
+            2) In the assignment application there are no possibilities of deadlock since the previous situation is 
+                avoided.
+        
+        Decision taken: 
+            Taking into account the scenario 2, and the complexity of deadlock-prevention solution, I decided not to 
+            implement it. 
+        
+        Proposed solution to avoid deadlock:
+                
+            Principles to be followed:                        
+                1 - Data class interface must remain the same.
+                2 - Deadlock should be avoided in both scenarios:
+                     - Local environment (several threads using Data) 
+                     - Distributed environment provided by the RMI server implemented (multiple threads invoking the 
+                        same instance of RemoteData)
+                3 - LockManager implementations should not have dependencies outside base package suncertify.db or 
+                    utility package suncertify.commons
+                4 - Deadlock prevention algorithm should be easily changed.
+            
+            Implementation:
+            
+                Point 1 suggest the usage of static ThreadLocal variables to access information needed
+                Point 2 and 3 lead to a common abstraction to both scenarios: ClientThreadId class with two main final 
+                    attributes: clientID (identifying the client), and threadId (identifying the client thread). 
+                    In local environment clientID will be always the same, a predefined constant. This class would be 
+                    generic enough to be located in suncertify.commons package. A ClientThreadIdProvider 
+                    (getCurrentClientThreadId()) instance could be passed to LockManager implementations.
+                
+                In a local environment: ClientThreadIdProvider would return ClientThreadId instance. The getThreadId()  
+                method of the latter would return the current executing thread identification (see "How to stateless 
+                identify a local Thread"), and getClientId() would be a constant identifying the a VM local client.              
+                
+                In a server environment:
+                    The server would identify the remote client and remote thread,  and store the information in some 
+                    static Threadlocal variables.
+                    Then a different ClientThreadIdProvider instance would be passed to the LockManager, making use of 
+                    that static thread-scoped information.  
+                
+                Point 4: Could be easily implemented by a template method in the LockManager base implementation. Any 
+                algorithm to use (prevent from holding two locks in the same client thread, let an ascendent locking 
+                order in order to avoid cycles in the same client thread, ...) now would have available all the 
+                information it needs.
+            
+            Problems:
+                1 - How to identify a local Thread in a stateless environment (is easy to know if a thread is the same 
+                    as other by the == operator, but we need base the comparison on a Serializable ID):
+                    None of the thread methods guarantee a way to identify a thread. From Java API javadoc:
+                    Thread.getID(): 
+                        "When a thread is terminated, this thread ID May Be reused."
+                    Thread.hashCode() (from Object): 
+                        "As much as is Reasonably Practical, the hashCode method defined by class Object does return 
+                        distinct integers for distinct objects. (This is Typically Implemented by converting the 
+                        internal address of the object Into an integer, but this technique is Not Implementation 
+                        required by the JavaTM programming language.)"
+                2 - How identify a client in our server.
+                3 - How identify a client thread in our server.
+                
+             Workarounds: 
+                1 - Create a new class ThreadId with static method getId(), and with a inner static threadlocal field to
+                    hold ids. This field initialization can be made from a static counter. This way each thread invoking 
+                    ThreadId.getId() will be assigned a unique long incremental number of which behaviour is controlled 
+                    by us. Despite of knowing that JVM sun implementation also creates thread ids sequentially, there is 
+                    nothing in the Thread API that ensure this behaviour. So now we can be sure.                    
+                2 - Current usage of a RMI factory makes this point straightforward. The factory has to number the 
+                    RemoteData managed instances on creation.
+                3 - RemoteDBAccess should add a new parameter to all its methods: long threadId. Threads will be 
+                    identified in the client like explained in (1) (inside RemoteDataAdapter class), and passed to the 
+                    RemoteData object. In the server, RemoteData class would move this information to a static 
+                    thread-scoped variable (as explained before) and then perform the delegation to the wrapped DBAccess
+                    instance as usually.  
+                     
+                     
+# Command invocation and notification framework:
+------------------------------------------------  
+    This framework responds to the requirement: "Your user interface should be designed with the expectation of future 
+    functionality enhancements, and it should establish a framework that will support this with minimal disruption to 
+    the users when this occurs."
+    
+    The framework makes easy to add new business operations and new graphical components with minimal side-effects in 
+    the current application code. The following are the main components in the framework:
+    
+    - Business commands (BusinessCommand<?> class): Based on Command and Template patterns. Encapsulates business method
+        calls in objects.
+        
+    - GUIBeans: Graphical components to be developed must extend the base GUIBean class. On of the requirements for the
+        subclasses is implement business command listener methods, so the components are able to respond to business 
+        operation executions.
+        
+    - Mediator: Executes BusinessCommand instances and notifies the result to all the GUIBeans registered. Both 
+        synchronous and asynchronous executions are supported (the latter is provided for future functionality 
+        enhancements, so is not currently used). Events fired to the listener are executed in the AWT event dispatch 
+        thread, making the listeners transparent to the kind of execution.
+       
+        Asynchronous support is provided as a base example for future functionality, and should be extended for a real 
+        life application in the following ways:
+            - Providing a task manager, so parallel task could be aborted, being able to show its state and estimated 
+                time to complete. 
+            - Providing task groups so parallel task could be executed sequentially in logical queues.
+            
+                    
+     What to do in case of adding a new business operation:
+        Create the Business command for the new operation and execute it with the client GUI Mediator instance.
+        Override the needed listeners methods of those GUIBeans wanted to respond the new command.  
+        
+     What to do in case of adding a new graphical component:
+        Extend GUIBean class and implement listener methods to attend to the desired business commands (via instanceof 
+        operator). If the GUI needs to perform business operations by itself, use the protected-instance-field mediator 
+        to execute the command.
+      
+        
+# Property file management:
+---------------------------  
+    A simple framework has been created to fulfill the requirement: "Such configuration information MUST be stored in a 
+    file called suncertify.properties which MUST be located in the current working directory".
+    
+    The framework (see PropertiesManager documentation) makes a class able to override its public static non final 
+    fields (only certain field types are supported) from the values stored in the properties file, and able to store the
+    current field values to the file.
+    
+    In the application, the framework is used by client and server GUIs, overriding the values at class loading time 
+    (static block).
+    Value storing occurs automatically at shutdown (a shutdown hook is used inside PropertiesManager)
+    
+    
+# Uncertainties found:
+----------------------
+    Data file character encoding:
+    -----------------------------
+        Instructions says: "The character encoding is 8 bit US ASCII".
+        Java charset named as "US-ASCII" is Seven-bit ASCII.
+        I chose "UTF-8" because it is a 8 bit charset that preserves the full US-ASCII range (RFC 2279) 
+
+    Purpose of locking methods:
+    ---------------------------
+        Locking methods using cookies are declared in mandatory interface DBAccess. 
+        Their objective is to avoid concurrent modifications of the same record.
+        Avoiding modify the same record could be implemented inside the class without making the client to call lock 
+        and unlock, simply synchronizing the access to the record, but the problem with this solution would be that 
+        sequential modifications of the same record may happen unaware. Optimistic locking could be a solution to that, 
+        passing to the update and delete an extra field array with the field values read originally.
+          
+        My reading of exposing locking methods to higher layers is as follows:
+            - Implement dirty read verification at higher level, and only when it would be necessary. (Not imposing the 
+                data layer to do it).
+                Example: Books must be performed over non booked rooms. So Business.book() method (called after lock()) 
+                rereads the record to have a reliable room state knowledge.
+            - Have a writing queue based system that can be used at business level as booking granting feature: 
+                Example: A CSR tells a customer that a room is available. Then, the customer decides to make the booking
+                and when the CSR performs the request an error is raised: the room is not already available.
+                
+                Exposing lock methods at BLL lets avoid this situation. The CSR locks the record and tells the client 
+                that the room is available with plenty guarantee. That is the reason why my business exposes lock 
+                methods.
+     
+    
+    ¿2 or 3 tier solution?:
+    -----------------------
+        Instructions are not clear about the methods that should be callable by the client. 
+        
+        In favor of 2 tier (Server exposing data layer):
+            Statements in instructions:
+                2.1) "Network server functionality for the database system "
+                2.2) "A client program ... that connects to the database"
+                2.3) "when communicating between the GUI and database elements""
+                2.4) "server must provide locking functionality as specified in the interface provided ..."
+                2.5) Presence of cookies: The cookie only makes sense if the client has to receive it and works with it.
+            Other reasons:
+                - Server functionality ensured. Data implementing functionality that is not used by the client 
+                    application (create record, delete), can be interpreted as other applications expecting this 
+                    functionality to be accessible in the server.
+
+        In favor of 3 tier (Server exposing business layer):
+            Reasons:   
+                - Migration to a web based system is easier.
+                - If RMI is chosen, the provided interface can't be the "server" interface since it does not extend 
+                    Remote and throws RemoteException in its methods. So it can be interpreted as an evidence that the 
+                    previous point 5 is invalid
+                - Simplest solution: Orphan locks are not an issue, since lock()->update->()unlock are executed in a 
+                single request.
+
+            Decision: I choose the two 2 tier solution, since I think is the one that accomplish the requirements, but 
+                in a real application I would go for the 3 tier solution, using the business object (HotelRoom) as data 
+                transfer objects in order to optimize network calls. 
+	
+# Presentation layer, GUI design:
+---------------------------------
+	The most remarkable features of the designed GUIS are:
+	
+	- Common behaviour is extracted to a common superclass: BaseGUI
+	- Getters with lazy initialization for inner components in order to make the code more maintainable.
+	- Use of layout managers in resizable frames.
+	- Show readable messages to the user ,not stack traces, etc...
+	- Possibility of use the applications only with the keyboard.
+
+	
+# GOF Design Patterns Used:
+---------------------------
+
+	- Template: 
+	       Client: Command class
+	       
+	- Observer:
+	       Server: UnreferencedListener
+	       Client: TableBeanListener, CommandListener
+	       
+	- Command:
+	       Client: Command class
+	       
+	- Mediator:
+	       Client: Mediator class
+	       
+	- Factory:
+	       Server: RemoteDBAccessFactory class
+	       
+	- Proxy:
+	       Client: RemoteDataAdapter class (remote proxy)
+	       Server: RemoteData class (smart reference)
+	       
+	- Adapter:
+	       Client: RemoteDataAdapter class
+	       
+	- Singleton:
+	       Client: PropertiesManager class
+	       
+	
+
+
+
+
+

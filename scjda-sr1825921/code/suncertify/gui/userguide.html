@@ -1,0 +1,177 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<title>Sun Certified Developer for the Java 2 Platform: URLyBird
+v1.2.1 User Guide</title>
+</head>
+<body style="padding: 10px">
+<h1><a name="top"></a>Sun Certified Developer for the Java 2
+Platform: URLyBird v1.2.1 User Guide</h1>
+<!-- ...................................................................... -->
+<h2>Index</h2>
+This document is divided into the following sections:
+<ul>
+	<li><a href="#intro">Introduction</a></li>
+	<li><a href="#launch">Launching</a>: Starting the application
+	and working modes
+	<ul>
+		<li><a href="#launch_standalone">Standalone client</a></li>
+		<li><a href="#launch_networked">Networked client</a></li>
+		<li><a href="#launch_server">Server</a></li>
+	</ul>
+	</li>
+	<li><a href="#client">Client application</a> - Client GUI
+	funcionalities
+	<ul>
+		<li><a href="#client_opening">Opening a local database</a></li>
+		<li><a href="#client_closing">Closing a local database session</a></li>
+		<li><a href="#client_connecting">Connecting to a remote database server</a></li>
+		<li><a href="#client_disconnecting">Disconnecting from a remote database server</a></li>
+		<li><a href="#client_searching">Searching hotel rooms</a></li>
+		<li><a href="#client_refreshing">Refreshing the results view</a></li>
+		<li><a href="#client_booking">Booking a room to customer</a></li>
+		<li><a href="#client_exiting">Exiting the application</a></li>
+	</ul>
+	</li>
+	<li><a href="#server">Server application</a>: Server GUI
+	funcionalities
+	<ul>
+		<li><a href="#server_starting">Starting the server</a></li>
+		<li><a href="#server_closing">Closing the server</a></li>
+	</ul>
+	</li>
+	<li><a href="#troubleshooting">Troubleshooting</a> -&nbsp;
+	The data server and its network connection
+	<ul>
+		<li><a href="#troubleshooting_reset">Reset to defaults</a></li>
+		<li><a href="#troubleshooting_logs">Logs</a></li>
+	</ul>
+	</li>
+</ul>
+<br/><i><a href="#top">Return to top</a></i>
+<hr />
+<!-- ...................................................................... -->
+<h2><a name="intro"></a>Introduction</h2>
+This application, allows the CSRs to show a list of hotel accomodations
+that match a customer's criteria and book a selected hotel room. All
+hotel related information is stored in a custom URLyBird 1.2.1 database.
+Both local and remote databases are supported.
+<p>Two types of scenarios are possible:
+<ol>
+	<li><b>Standalone:</b> One single application runs: a client
+	application accessing directly a local database. No networking is
+	performed.</li>
+	<li><b>Distributed:</b> A server application runs and one or more
+	remote client applications connect to it. Communication is made over
+	the network. This mode should be used in case of several CSRs share a single
+	database.</li>
+</ol>
+Therefore three working modes are supported: Standalone client using a
+local database file, online client using a remote database server, and
+database server publishing a database over the network.
+</p>
+<br>
+<br/><i><a href="#top">Return to top</a></i>
+<hr>
+<!-- ...................................................................... -->
+<h2><a name="launch"></a>Launching</h2>
+Application working modes:
+<ul>
+<li><a name="launch_standalone"></a><b>Standalone client</b></li>
+Uses a local database with no networking involved.
+From the command line type: <pre>java -jar &lt;path_and_filename&gt; alone</pre>
+<p>
+<li><a name="launch_networked"></a><b>Networked client</b></li>
+Connects to a published server.
+From the command line type: <pre>java -jar &lt;path_and_filename&gt;</pre>
+<p>
+<li><a name="launch_server"></a><b>Server</b></li>
+Publishes a database over the net.
+From the command line type: <pre>java -jar &lt;path_and_filename&gt; server</pre>
+</ul>
+<br/>
+<i><a href="#top">Return to top</a></i>
+<hr/>
+<!-- ...................................................................... -->
+<h2><a name="client"></a>Client application</h2>
+Client application lets a CSR inspect an URLyBird database and book rooms, updating the database
+accordingly. Local and remote databases are supported. 
+<ul>
+	<p>
+	<li><a name="client_opening"></a><b>Opening a local database</b></li>
+	From the menu bar select <code>File->Open</code> to open the file select dialog, and pick the database file. 
+	Then, if everything goes fine, all the rooms stored in the file will be showed in the results table.
+	<p>
+	<li><a name="client_closing"></a><b>Closing a local database session</b></li>
+	If there is a local database session active go to <code>File->Close</code> to end it.
+	<p>
+	<li><a name="client_connecting"></a><b>Connecting to a remote database server</b></li>
+	From the menu bar select <code>File->Connect</code> to open the connect dialog. The remote database must be previously published over the network by a <a href="#server">Server application</a>.
+	Two connection parameters are needed: 
+	<ul>
+		<li><b>Server address</b>: The host name or IP address of the machine where the server is running. Identifies the server machine in the network.</li>
+		<li><b>Port</b>: This numeric value must be the same that was specified on server startup. This parameter identifies the server process within the server machine.</li>
+	</ul>
+	<p>
+	<li><a name="client_disconnecting"></a><b>Disconnecting from a remote database server</b></li>
+	If a remote database session is active go to <code>File->Disconnect</code> to end it.	
+	<p>
+	<li><a name="client_searching"></a><b>Searching hotel rooms</b></li>
+	Once a database session is opened (local or remote), searches can be performed:
+	<ul>
+		<li><b>Search all rooms</b>: From the menu bar select <code>Search->View all database</code>, or press the following key combination <code>Ctrl+D</code>.</li>
+		<li><b>Search dialog</b>: This dialog allows the user to search the database for all rooms, or for rooms where the name and/or location exactly match values specified by the user.
+		To open this dialog, from the menu bar select <code>Search->Search</code>, or press the following key combination <code>Ctrl+F</code>.</li>
+	</ul>
+	<p>
+	<li><a name="client_refreshing"></a><b>Refreshing the results view</b></li>
+	In remote environments, the results view in client applications often become stale due to modifications made in the database by other users. Refreshing the current view is repeating the
+	last search made. To refresh the view, from the menu bar select <code>File->Refresh</code>, click the <code>Refresh button</code>, or press the key <code>F5</code>.
+	<p>
+	<li><a name="client_booking"></a><b>Booking a room to customer</b></li>
+	Rooms not belonging to a customer can be booked with the client application. To book a room, select it (clicking on it with the mouse or navigating with the arrow keys), and then press 
+	<code>Enter</code> or click the <code>Book button</code>. Then the book dialog will be shown, asking to enter the customer ID. While this dialog is open,  the room is locked and only 
+	that CSR can book the room. On the other hand, is possible that the selected room is being booked by other CSR, if this case occurs, the client application will be bloked
+	until the locked room has been released.<br>
+	<i>Tip: Use the <code>Left arrow</code> and <code>Right arrow</code> to navigate only through available rooms.</i>
+	<p>
+	<li><a name="client_exiting"></a><b>Exiting the application</b></li>
+	From the menu bar select <code>File->Exit</code> to quit the application.
+</ul>
+<br/><i><a href="#top">Return to top</a></i>
+<hr>
+<!-- ...................................................................... -->
+<h2><a name="server"></a>Server application</h2>
+Server application publishes a database over the network, so it can be shared by multiple remote clients. For server launching information see <a href="#launch_server">this section</a>.
+<ul>
+	<li><a name="server_starting"></a><b>Starting the server</b></li>
+	To start the server the following mandatory parameters must be specified:
+	<ul>
+		<li><a name="server_file"></a><b>Database file</b>: Enter the path of the database file to use, or press the <code>... button</code> to select a database file</li>
+		<li><a name="server_port"></a><b>Server port</b>: Enter a numeric value. This number must be known by the clients so they can later connect to the server. The port must not be used by other server application running in the same machine.</li>
+	</ul>
+	Then press the <code>Start button</code> to start the server.
+	<p>
+	<li><a name="server_closing"></a><b>Closing the server</b></li>
+	Press the <code>Exit button</code>, or from the menu bar select <code>File->Exit</code> to close the server. If the server has been started, the shutdown process takes some time to finish.  
+</ul>
+<br/><i><a href="#top">Return to top</a></i>
+<hr>
+<!-- ...................................................................... -->
+<h2><a name="troubleshooting"></a>Troubleshooting</h2>
+<ul>
+	<li><a name="troubleshooting_reset"></a><b>Reset to defaults</b></li>
+	Delete the suncertify.properties file generated in application starting path.
+	<p>
+	<li><a name="troubleshooting_logs"></a><b>Logs</b></li>
+	Both server and client applications generate log files with detailed executions
+	history information. Log path location is specified in server and client
+	GUIs.
+</ul>
+From the menu bar select <code>Help->Troubleshooting</code> for detailed path information.
+<br/>
+<br/><i><a href="#top">Return to top</a></i>
+<hr>
+<!-- ...................................................................... -->
+</body>
+</html>
