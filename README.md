@@ -13,6 +13,7 @@ I have decided to publish it now, a few years after achieving the SCJD certifica
 
 ![URLuBird snapshot](URLyBird.gif)
 
-
 ![About screenshot](scjda-sr1825921/code/suncertify/gui/images/portada.gif)
+
+![Certified credential](https://acclaim-production-app.s3.amazonaws.com/images/246b5d2f-6c89-4664-bbeb-6149ee3f3062/oracle_master.png)
 
