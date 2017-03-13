@@ -9,7 +9,7 @@ I have decided to publish it now, a few years after achieving the SCJD certifica
   * [`choices.txt`](https://rawgit.com/idelvall/SCJD-OCMJD/master/scjda-sr1825921/docs/choices.txt)
   * [Javadoc API documentation](https://rawgit.com/idelvall/SCJD-OCMJD/master/scjda-sr1825921/docs/javadoc/index.html)
 
-
+<br>
 
 ![URLuBird snapshot](URLyBird.gif)
 
