@@ -15,5 +15,6 @@ I have decided to publish it now, a few years after achieving the SCJD certifica
 
 ![About screenshot](scjda-sr1825921/code/suncertify/gui/images/portada.gif)
 
-![Certified credential](https://acclaim-production-app.s3.amazonaws.com/images/246b5d2f-6c89-4664-bbeb-6149ee3f3062/oracle_master.png)
+
+[![Certified credential](scjda-sr1825921/Oracle-Certification-badge_OC-Master.png)](https://www.youracclaim.com/badges/0e01a6db-4e57-427b-89ca-e233efd6baf9)
 
